@@ -461,23 +461,12 @@ test('several references each get their own key input', async () => {
   assert.deepEqual(page.sets, [{ ref: 'TYPESAFE_API_KEY_2', value: 'second-key' }])
 })
 
-test('the reference list itself is editable on the card', async () => {
-  const page = await harness()
-  type(inputWith(page.tree, 'TYPESAFE_API_KEY'), 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2')
-  const tree = await page.rerender()
-  assert.equal(buttonWith(tree, '保存变量名').props.disabled, false, 'a changed reference list must be writable')
-  buttonWith(tree, '保存变量名').props.onClick()
-  await flush()
-  assert.deepEqual(page.updates, [
-    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' }], revision: 7 },
-  ])
-})
-
 test('the reference and exit fields are worded in both languages', async () => {
   const en = await harness({ locale: 'en' })
   assert.match(allText(en.tree), /Key reference/)
   assert.match(allText(en.tree), /Network exit/)
-  assert.equal(buttonWith(en.tree, 'Save reference').props.disabled, true, 'nothing changed, so there is nothing to save')
+  assert.equal(buttonWith(en.tree, 'Add a key').props.disabled, false, 'growing the list is always available')
+  assert.match(allText(en.tree), /One row per key/)
 })
 
 test('adding a reference appends a fresh name to the list', async () => {

@@ -128,10 +128,8 @@ window.__ModuleLoader__.load({
         noSettingsService: '设置服务不可用。',
         readonlyRef: (ref) => `环境变量 ${ref} 由只读来源提供，无法在界面上覆盖。要修改请改动它的来源。`,
         refsHeading: '密钥变量名',
-        refsSave: '保存变量名',
         refsSaved: '变量名已保存；凭据按新的变量名重新读取。',
-        refsHint: '逗号分隔可填多把，例如 TYPESAFE_API_KEY,TYPESAFE_API_KEY_2：同一会话固定用一把，只有它 401/429 才换下一把。',
-        refsBad: '至少填一个变量名。',
+        refsHint: '一行一把：左边改名，右边粘贴 key，点行上的保存；「添加一把」加一行，「移除」删一行（至少留一把）。同一会话固定用一把，只有它 401/429 才换下一把。',
         refsDup: '这个名字已经在用了，换一个。',
         refsRename: '新变量名',
         refsAdd: '添加一把',
@@ -181,10 +179,8 @@ window.__ModuleLoader__.load({
         noSettingsService: 'The settings service is unavailable.',
         readonlyRef: (ref) => `${ref} comes from a read-only source and cannot be overridden here; change that source instead.`,
         refsHeading: 'Key reference',
-        refsSave: 'Save reference',
         refsSaved: 'Reference saved; credentials are re-read from the new names.',
-        refsHint: 'Comma-separated for several keys, e.g. TYPESAFE_API_KEY,TYPESAFE_API_KEY_2: a session stays on one key and moves on only when it answers 401 or 429.',
-        refsBad: 'Enter at least one variable name.',
+        refsHint: 'One row per key: rename on the left, paste the key on the right, save the row; “Add a key” grows the list, “Remove” shrinks it (one reference always stays). A session stays on one key and moves on only when it answers 401 or 429.',
         refsDup: 'That name is already in the list.',
         refsRename: 'New variable name',
         refsAdd: 'Add a key',
@@ -354,7 +350,6 @@ window.__ModuleLoader__.load({
         // happen per keystroke.
         const [baseUrlDraft, setBaseUrlDraft] = React.useState('')
         const [modelDraft, setModelDraft] = React.useState('')
-        const [apiKeyEnvDraft, setApiKeyEnvDraft] = React.useState('')
         const [proxyDraft, setProxyDraft] = React.useState('')
         const seeded = React.useRef(false)
 
@@ -393,7 +388,6 @@ window.__ModuleLoader__.load({
           seeded.current = true
           setBaseUrlDraft(typeof settings.baseUrl === 'string' ? settings.baseUrl : '')
           setModelDraft(typeof settings.model === 'string' ? settings.model : '')
-          setApiKeyEnvDraft(typeof settings.apiKeyEnv === 'string' ? settings.apiKeyEnv : '')
           setProxyDraft(typeof settings.proxy === 'string' ? settings.proxy : '')
         }, [settings])
 
@@ -554,19 +548,6 @@ window.__ModuleLoader__.load({
         patchRef.current = patch
 
         /**
-         * Save the reference list, and only when it changed. Writing an unchanged
-         * value would turn "I looked at it" into an override, which pins the value
-         * against future default changes — the same rule the endpoint fields follow.
-         * Defined after `patch`, whose operation list it writes through.
-         */
-        const saveApiKeyEnv = React.useCallback(async () => {
-          const value = apiKeyEnvDraft.trim()
-          if (settings === null || splitRefs(value).length === 0) return
-          if (value === rawRef) return
-          if (await patch([{ op: 'set', path: ['apiKeyEnv'], value }])) setNote(S[langOf(ctx)].refsSaved)
-        }, [apiKeyEnvDraft, rawRef, settings, patch])
-
-        /**
          * Append a fresh reference name and save the list: the new row's key
          * input appears once the host's re-read arrives. Names are `NEW_KEY`,
          * `NEW_KEY_2`, … — rename them in the field above if they offend.
@@ -649,16 +630,12 @@ window.__ModuleLoader__.load({
         const baseUrlValue = baseUrlDraft.trim()
         const modelValue = modelDraft.trim()
         const proxyValue = proxyDraft.trim()
-        const apiKeyEnvValue = apiKeyEnvDraft.trim()
         const endpointReadOnly = settings === null || busy || !formWritable
         // An empty address is invalid too: storing one would POST to a relative
         // URL, and that failure is invisible everywhere else.
         const baseUrlInvalid = !BASE_URL_RE.test(baseUrlValue)
         const modelInvalid = modelValue === ''
         const proxyInvalid = !(proxyValue === '' || proxyValue === 'system' || BASE_URL_RE.test(proxyValue))
-        const apiKeyEnvBad = splitRefs(apiKeyEnvValue).length === 0
-        const apiKeyEnvDirty = settings !== null && apiKeyEnvValue !== rawRef
-        const apiKeyEnvSaveDisabled = endpointReadOnly || !apiKeyEnvDirty || apiKeyEnvBad
         const endpointDirty = settings !== null
           && (baseUrlValue !== settingsBaseUrl || modelValue !== settingsModel || proxyValue !== settingsProxy)
         const endpointSaveDisabled = endpointReadOnly || !endpointDirty || baseUrlInvalid || modelInvalid || proxyInvalid
@@ -672,15 +649,8 @@ window.__ModuleLoader__.load({
             link(openRouter ? OPENROUTER_KEYS_URL : KEYS_URL, openRouter ? t.getKeyOpenRouter : t.getKeyTypeSafe)),
 
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px', borderTop: `1px solid ${BORDER}` } },
-            field(t.refsHeading, apiKeyEnvDraft, (next) => { setApiKeyEnvDraft(next) }, DEFAULT_REF, endpointReadOnly),
-            apiKeyEnvBad ? h('div', { style: { fontSize: '11px', color: MUTED } }, t.refsBad) : null,
+            h('div', { style: { fontSize: '12px', fontWeight: 600, color: TEXT } }, t.refsHeading),
             h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-              h('button', {
-                type: 'button',
-                disabled: apiKeyEnvSaveDisabled,
-                onClick: () => { void saveApiKeyEnv() },
-                style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: apiKeyEnvSaveDisabled ? 'default' : 'pointer' },
-              }, t.refsSave),
               h('button', {
                 type: 'button',
                 disabled: endpointReadOnly || busy,

@@ -103,7 +103,7 @@ In one line: **once a key is configured, tool output and fetched pages leave the
 
 ## Settings
 
-Every row can be set in the `config:` block of the bundle row; the settings card edits all seven directly — the master switch, the key reference, the network exit, the judgment endpoint, the model, and the prune and suggest toggles; with several keys configured, each gets its own paired name-plus-key row, an add button grows the list, each row renames inline (rename plus key in one save), and each row's remove button shrinks it (one reference always stays). The rest (thresholds, allowlists, screening, the ledger, the per-session cap) are composition-only for now. For the endpoint, enter the service root (the plugin appends `/v1/systemone`); OpenRouter, for example, is `https://openrouter.ai/api` with model `jev-latest` and an OpenRouter key.
+Every row can be set in the `config:` block of the bundle row; on the settings card the master switch, the network exit, the judgment endpoint, the model and the prune and suggest toggles are edited directly, while the key reference is managed through its rows: one paired name-plus-key row per key, an add button grows the list, each row renames inline (rename plus key in one save), and each row's remove button shrinks it (one reference always stays). The rest (thresholds, allowlists, screening, the ledger, the per-session cap) are composition-only for now. For the endpoint, enter the service root (the plugin appends `/v1/systemone`); OpenRouter, for example, is `https://openrouter.ai/api` with model `jev-latest` and an OpenRouter key.
 
 | Key | Default | Notes |
 |---|---|---|
@@ -179,7 +179,7 @@ The plugin follows your language in both directions with no configuration: the s
 
 ```bash
 npm install --cache .npm-cache   # very few dependencies
-npm test                         # builds first, then runs 281 tests (node --test, no test framework)
+npm test                         # builds first, then runs 280 tests (node --test, no test framework)
 node scripts/check-tarball.mjs   # asserts the published tarball carries no local state and nothing is missing
 node scripts/release-notes.ts 0.1.8  # preview a version's GitHub Release body (the workflow calls this on release)
 npm run trigger-rate             # trigger rates from local session logs — no key, no network

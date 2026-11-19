@@ -51,9 +51,10 @@ Published on npm: `npm i dsh-jev-tools`. It can also be installed from the repos
   direct connection and the plugin still mounts.
 - **The settings card draws all seven.** It used to draw six, leaving `proxy` and the multi-key
   reference to the settings page; the reference input, the network-exit input and the per-key
-  paired name-plus-key rows now all live on the card, an add button grows the list, each row
-  renames inline in the same save, and each row's remove button shrinks it (one reference
-  always stays), with `test/client.test.ts` and `test/bundle-contract.test.ts` locking reachability.
+  paired name-plus-key rows now all live on the card instead of a comma-separated string field:
+  an add button grows a row, each row renames inline in the same save, and each row's remove
+  button shrinks the list (one reference always stays), with `test/client.test.ts` and
+  `test/bundle-contract.test.ts` locking reachability.
 
 ## [0.1.13] — 2026-09-30
 
