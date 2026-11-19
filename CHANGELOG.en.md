@@ -51,7 +51,8 @@ Published on npm: `npm i dsh-jev-tools`. It can also be installed from the repos
   direct connection and the plugin still mounts.
 - **The settings card draws all seven.** It used to draw six, leaving `proxy` and the multi-key
   reference to the settings page; the reference input, the network-exit input and the per-key
-  inputs now all live on the card, with `test/client.test.ts` and `test/bundle-contract.test.ts`
+  inputs now all live on the card, an add button grows the list and each row's remove button
+  shrinks it (one reference always stays), with `test/client.test.ts` and `test/bundle-contract.test.ts`
   locking reachability.
 
 ## [0.1.13] — 2026-09-30

@@ -479,3 +479,23 @@ test('the reference and exit fields are worded in both languages', async () => {
   assert.match(allText(en.tree), /Network exit/)
   assert.equal(buttonWith(en.tree, 'Save reference').props.disabled, true, 'nothing changed, so there is nothing to save')
 })
+
+test('adding a reference appends a fresh name to the list', async () => {
+  const page = await harness()
+  buttonWith(page.tree, '添加一把').props.onClick()
+  await flush()
+  assert.deepEqual(page.updates, [
+    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, NEW_KEY' }], revision: 7 },
+  ])
+})
+
+test('removing a reference drops it from the list', async () => {
+  const page = await harness({ value: { apiKeyEnv: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' } })
+  const removes = nodesOf(page.tree, node => node.type === 'button' && textOf(node) === '移除')
+  assert.equal(removes.length, 2, 'one remove button per reference')
+  removes[0]!.props.onClick()
+  await flush()
+  assert.deepEqual(page.updates, [
+    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY_2' }], revision: 7 },
+  ])
+})

@@ -132,6 +132,8 @@ window.__ModuleLoader__.load({
         refsSaved: '变量名已保存；凭据按新的变量名重新读取。',
         refsHint: '逗号分隔可填多把，例如 TYPESAFE_API_KEY,TYPESAFE_API_KEY_2：同一会话固定用一把，只有它 401/429 才换下一把。',
         refsBad: '至少填一个变量名。',
+        refsAdd: '添加一把',
+        refsRemove: '移除',
         configuredMany: (done, total) => `已配置 ${done}/${total}`,
         proxyLabel: '网络出口',
         proxyHint: '留空直连；填 system 走系统代理；也可直接填地址，如 http://127.0.0.1:7897。受限地区直连只会拿到 403。',
@@ -181,6 +183,8 @@ window.__ModuleLoader__.load({
         refsSaved: 'Reference saved; credentials are re-read from the new names.',
         refsHint: 'Comma-separated for several keys, e.g. TYPESAFE_API_KEY,TYPESAFE_API_KEY_2: a session stays on one key and moves on only when it answers 401 or 429.',
         refsBad: 'Enter at least one variable name.',
+        refsAdd: 'Add a key',
+        refsRemove: 'Remove',
         configuredMany: (done, total) => `configured ${done}/${total}`,
         proxyLabel: 'Network exit',
         proxyHint: 'Empty connects directly; system uses the operating system proxy; a URL such as http://127.0.0.1:7897 is used as given. A blocked region only ever gets a 403 on a direct connection.',
@@ -532,6 +536,31 @@ window.__ModuleLoader__.load({
         }, [apiKeyEnvDraft, rawRef, settings, patch])
 
         /**
+         * Append a fresh reference name and save the list: the new row's key
+         * input appears once the host's re-read arrives. Names are `NEW_KEY`,
+         * `NEW_KEY_2`, … — rename them in the field above if they offend.
+         */
+        const addRef = React.useCallback(async () => {
+          if (settings === null) return
+          let n = 1
+          let name = 'NEW_KEY'
+          while (refs.indexOf(name) !== -1) { n += 1; name = `NEW_KEY_${n}` }
+          const value = rawRef === '' ? name : `${rawRef}, ${name}`
+          if (await patch([{ op: 'set', path: ['apiKeyEnv'], value }])) setNote(S[langOf(ctx)].refsSaved)
+        }, [rawRef, refs, settings, patch])
+
+        /**
+         * Drop one reference from the list; its key input leaves with it. The
+         * last reference cannot be removed — an empty list would fall back to
+         * the default name and pretend nothing was configured.
+         */
+        const removeRef = React.useCallback(async (name) => {
+          if (settings === null || refs.length <= 1) return
+          const value = refs.filter((entry) => entry !== name).join(', ')
+          if (await patch([{ op: 'set', path: ['apiKeyEnv'], value }])) setNote(S[langOf(ctx)].refsSaved)
+        }, [refs, settings, patch])
+
+        /**
          * Save the endpoint fields, and only the ones that changed.
          *
          * Writing an unchanged field would turn "I looked at it" into an
@@ -620,7 +649,13 @@ window.__ModuleLoader__.load({
                 disabled: apiKeyEnvSaveDisabled,
                 onClick: () => { void saveApiKeyEnv() },
                 style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: apiKeyEnvSaveDisabled ? 'default' : 'pointer' },
-              }, t.refsSave)),
+              }, t.refsSave),
+              h('button', {
+                type: 'button',
+                disabled: endpointReadOnly || busy,
+                onClick: () => { void addRef() },
+                style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: endpointReadOnly || busy ? 'default' : 'pointer' },
+              }, t.refsAdd)),
             h('div', { style: { fontSize: '11px', color: MUTED, lineHeight: '16px' } }, t.refsHint)),
 
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
@@ -642,7 +677,13 @@ window.__ModuleLoader__.load({
                 disabled: busy || (drafts[entry.name] ?? '') === '' || !entry.writable,
                 onClick: () => { void saveKey(entry.name) },
                 style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: busy || (drafts[entry.name] ?? '') === '' ? 'default' : 'pointer' },
-              }, t.save)),
+              }, t.save),
+              h('button', {
+                type: 'button',
+                disabled: busy || refs.length <= 1,
+                onClick: () => { void removeRef(entry.name) },
+                style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: busy || refs.length <= 1 ? 'default' : 'pointer' },
+              }, t.refsRemove)),
             entry.writable ? null : h('div', { style: { fontSize: '11px', color: MUTED } }, t.readonlyRef(entry.name))))),
 
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px', borderTop: `1px solid ${BORDER}` } },
