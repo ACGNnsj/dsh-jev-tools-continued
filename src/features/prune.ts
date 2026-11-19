@@ -45,11 +45,10 @@ import type { ContextCache } from '../context-cache.js'
 import type { Budget } from '../budget.js'
 import type { Memo } from '../memo.js'
 import type { Ledger, LedgerFeature, BaselineUnavailable } from '../ledger.js'
-import type { CredentialsService } from '../host.js'
+import type { KeyPool } from '../keys.js'
 import type {
   PostToolDecision, PostToolListener, ToolExecutionResultLike, ToolResultPrunerService,
 } from '../host.js'
-import { resolveApiKey } from '../credentials.js'
 import { fingerprint } from '../memo.js'
 import { noticeSource } from '../source.js'
 
@@ -74,9 +73,10 @@ const FLOOR_TOKEN_SHARE = 0.5
 /** Dependencies the listener needs. */
 export interface PruneDeps {
   readonly settings: () => JevSettings
-  readonly credentials: () => CredentialsService | undefined
+  /** The session's key, and the next one when it is spent. */
+  readonly keys: KeyPool
   /** Build a backend for one resolved key. */
-  readonly backendFor: (apiKey: string, model: string) => DecisionBackend
+  readonly backendFor: (apiKey: string, model: string, agentId?: string) => DecisionBackend
   /** DSH's own deterministic pruner, for the baseline measurement. */
   readonly pruner: () => ToolResultPrunerService | undefined
   readonly cache: ContextCache
@@ -429,13 +429,13 @@ export function createPruneListener (deps: PruneDeps): PostToolListener {
       const turn = deps.cache.turn(agentId) ?? 0
       const grant = deps.budget.tryConsume(agentId, turn)
       if (!grant.ok) return skip(grant.reason, { originalTokens }, 'screen')
-      const apiKey = await resolveApiKey(deps.credentials(), settings.apiKeyEnv)
-      if (!apiKey.ok) return skip('no-key', { originalTokens }, 'screen')
+      const key = await deps.keys.first(agentId)
+      if (key === undefined) return skip('no-key', { originalTokens }, 'screen')
 
       const question = injectionQuestion('content')
       let screened
       try {
-        screened = await deps.backendFor(apiKey.value, settings.model).judge({
+        screened = await deps.backendFor(key, settings.model, agentId).judge({
           state: { task, content: sourceText },
           questions: { [INJECTION_ID]: question },
           model: settings.model,
@@ -475,8 +475,8 @@ export function createPruneListener (deps: PruneDeps): PostToolListener {
     const grant = deps.budget.tryConsume(agentId, turn)
     if (!grant.ok) return skip(grant.reason, { originalTokens })
 
-    const apiKey = await resolveApiKey(deps.credentials(), settings.apiKeyEnv)
-    if (!apiKey.ok) return skip('no-key', { originalTokens })
+    const sessionKey = await deps.keys.first(agentId)
+    if (sessionKey === undefined) return skip('no-key', { originalTokens })
 
     const chunks = chunkText(sourceText)
     if (chunks.length < 2) return skip('empty', { originalTokens })
@@ -528,7 +528,7 @@ export function createPruneListener (deps: PruneDeps): PostToolListener {
 
     let judged
     try {
-      judged = await deps.backendFor(apiKey.value, model).judge(request, exec.signal)
+      judged = await deps.backendFor(sessionKey, model, agentId).judge(request, exec.signal)
     } catch (error) {
       const problem = error instanceof JevError ? error.problem : undefined
       return skip(reasonFromFailure(problem), { originalTokens })

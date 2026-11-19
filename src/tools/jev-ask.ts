@@ -19,21 +19,22 @@
 
 import { JevError } from '../backends/jev.js'
 import { validateRequest } from '../request.js'
-import { resolveApiKey } from '../credentials.js'
 import { skipMessage, type SkipReason } from '../degrade.js'
 import { detectLang, t, type Lang } from '../i18n.js'
 import { TYPESAFE_KEYS_URL, type JevSettings } from '../config.js'
 import type { Answer, DecisionBackend, JudgmentRequest, Question } from '../backends/types.js'
 import type { Budget } from '../budget.js'
 import type { ContextCache } from '../context-cache.js'
-import type { CredentialsService, ToolDefinitionLike } from '../host.js'
+import type { ToolDefinitionLike } from '../host.js'
+import type { KeyPool } from '../keys.js'
 import type { Ledger } from '../ledger.js'
 
 /** Dependencies the tool needs. */
 export interface JevAskDeps {
   readonly settings: () => JevSettings
-  readonly credentials: () => CredentialsService | undefined
-  readonly backendFor: (apiKey: string, model: string) => DecisionBackend
+  /** The session key pool: the pinned key, and the next one when it is spent. */
+  readonly keys: KeyPool
+  readonly backendFor: (apiKey: string, model: string, agentId?: string) => DecisionBackend
   readonly cache: ContextCache
   readonly budget: Budget
   readonly ledger: Ledger
@@ -187,8 +188,8 @@ export function createJevAskTool (deps: JevAskDeps): ToolDefinitionLike {
           lang, agentId)
       }
 
-      const apiKey = await resolveApiKey(deps.credentials(), settings.apiKeyEnv)
-      if (!apiKey.ok) {
+      const key = await deps.keys.first(agentId)
+      if (key === undefined) {
         return {
           ...declined('no-key', `Could not resolve a key from ${settings.apiKeyEnv}.`, lang, agentId),
           hint: `Create an API key at ${TYPESAFE_KEYS_URL} and paste it into the plugin settings page, `
@@ -200,7 +201,7 @@ export function createJevAskTool (deps: JevAskDeps): ToolDefinitionLike {
       const started = deps.now()
       let judged
       try {
-        judged = await deps.backendFor(apiKey.value, model).judge(request, exec.signal)
+        judged = await deps.backendFor(key, model, agentId).judge(request, exec.signal)
       } catch (error) {
         const problem = error instanceof JevError ? error.problem : 'unknown'
         const detail = error instanceof Error ? error.message : String(error)

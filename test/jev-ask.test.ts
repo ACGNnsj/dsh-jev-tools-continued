@@ -20,6 +20,7 @@ import { createBudget } from '../lib/budget.js'
 import { createMemoryLedger } from '../lib/ledger.js'
 import { createContextCache, type ContextCache } from '../lib/context-cache.js'
 import type { CredentialsService, ToolDefinitionLike } from '../lib/host.js'
+import { createKeyPool } from '../lib/keys.js'
 
 const SETTINGS = resolveSettings(undefined)
 const SIGNAL = new AbortController().signal
@@ -52,7 +53,7 @@ function harness (options: {
   let calls = 0
   const tool = createJevAskTool({
     settings: () => options.settings ?? SETTINGS,
-    credentials: () => options.key ?? KEYED,
+    keys: createKeyPool(() => options.key ?? KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async (request) => {
@@ -181,7 +182,7 @@ test('a Choice answer lists the whole distribution, not just the winner', async 
 test('a question the backend never answered is reported rather than silently dropped', async () => {
   const tool = createJevAskTool({
     settings: () => SETTINGS,
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({ id: 'fake', judge: async () => ({ model: 'jev-1.13.0', answers: { a: { type: 'noul', noul: 0.5 } } as never }) }),
     cache: chineseCache(),
     budget: createBudget(3, 200),
@@ -198,7 +199,7 @@ test('a question the backend never answered is reported rather than silently dro
 test('a transport failure declines instead of throwing', async () => {
   const tool = createJevAskTool({
     settings: () => SETTINGS,
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({ id: 'fake', judge: async () => { throw new Error('ECONNREFUSED') } }),
     cache: chineseCache(),
     budget: createBudget(3, 200),
@@ -236,7 +237,7 @@ test('more than three calls in one session still succeed', async () => {
 test('the session ceiling still bounds explicit calls', async () => {
   const tool = createJevAskTool({
     settings: () => resolveSettings({ sessionCallLimit: 2 }),
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async () => ({ model: 'jev-1.13.0', answers: { refund: { type: 'noul', noul: 0.5 } } as never }),

@@ -20,6 +20,7 @@ import { createContextCache } from '../lib/context-cache.js'
 import { createMemoryLedger } from '../lib/ledger.js'
 import { createMemo } from '../lib/memo.js'
 import type { CredentialsService, PostToolDecision } from '../lib/host.js'
+import { createKeyPool } from '../lib/keys.js'
 
 const SETTINGS = resolveSettings(undefined)
 
@@ -79,7 +80,7 @@ function harness (options: {
   const holder = { value: resolveSettings(options.config) }
   const listener = createPruneListener({
     settings: () => holder.value,
-    credentials: () => options.key ?? KEYED,
+    keys: createKeyPool(() => options.key ?? KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async (request) => {
@@ -213,7 +214,7 @@ test('a 401 is reported as a session notice, not only as a ledger line', async (
   const notices = createDegradeNotices()
   const listener = createPruneListener({
     settings: () => SETTINGS,
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async () => { throw new JevError('unauthorized', 'HTTP 401') },
@@ -526,7 +527,7 @@ test('a backend failure degrades to the original payload', async () => {
   cache.remember('agent-1', 'fix the parser bug')
   const listener = createPruneListener({
     settings: () => SETTINGS,
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({ id: 'fake', judge: async () => { throw new Error('network down') } }),
     pruner: () => undefined,
     cache,

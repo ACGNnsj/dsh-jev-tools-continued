@@ -21,6 +21,7 @@ import { skipMessage } from '../lib/degrade.js'
 import type {
   CredentialsService, PreStepDecision, SkillsService, SkillViewOptionsLike,
 } from '../lib/host.js'
+import { createKeyPool } from '../lib/keys.js'
 
 const SETTINGS = resolveSettings(undefined)
 const SIGNAL = new AbortController().signal
@@ -58,7 +59,7 @@ function harness (options: {
   let judgeCalls = 0
   const listener = createSkillSuggestListener({
     settings: () => options.settings ?? SETTINGS,
-    credentials: () => options.key ?? KEYED,
+    keys: createKeyPool(() => options.key ?? KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async (request: { state?: unknown }) => {

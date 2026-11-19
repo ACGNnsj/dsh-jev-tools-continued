@@ -35,17 +35,17 @@
  */
 
 import { JevError } from '../backends/jev.js'
-import { resolveApiKey } from '../credentials.js'
 import { reasonFromFailure, type SkipReason } from '../degrade.js'
 import { detectLang, t } from '../i18n.js'
 import type { DecisionBackend, JudgmentRequest } from '../backends/types.js'
 import type { JevSettings } from '../config.js'
 import type { ContextCache } from '../context-cache.js'
 import type { Budget } from '../budget.js'
+import type { KeyPool } from '../keys.js'
 import type { Ledger } from '../ledger.js'
 import type { DegradeNotices } from '../notify.js'
 import type {
-  CredentialsService, PreStepDecision, PreStepListener, SkillsService,
+  PreStepDecision, PreStepListener, SkillsService,
 } from '../host.js'
 import { noticeSource } from '../source.js'
 
@@ -93,8 +93,9 @@ function trimOldest<V> (map: Map<string, V>): void {
 /** Dependencies the listener needs. */
 export interface SkillSuggestDeps {
   readonly settings: () => JevSettings
-  readonly credentials: () => CredentialsService | undefined
-  readonly backendFor: (apiKey: string, model: string) => DecisionBackend
+  /** The session key pool: the pinned key, and the next one when it is spent. */
+  readonly keys: KeyPool
+  readonly backendFor: (apiKey: string, model: string, agentId?: string) => DecisionBackend
   readonly skills: () => SkillsService | undefined
   readonly cache: ContextCache
   readonly budget: Budget
@@ -224,8 +225,8 @@ export function createSkillSuggestListener (deps: SkillSuggestDeps): PreStepList
       return downstream
     }
 
-    const apiKey = await resolveApiKey(deps.credentials(), settings.apiKeyEnv)
-    if (!apiKey.ok) {
+    const key = await deps.keys.first(agentId)
+    if (key === undefined) {
       deps.notices.note(agentId, 'no-key')
       noteSkip('no-key')
       return downstream
@@ -274,7 +275,7 @@ export function createSkillSuggestListener (deps: SkillSuggestDeps): PreStepList
     const started = deps.now()
     let judged
     try {
-      judged = await deps.backendFor(apiKey.value, model).judge(request, payload.signal)
+      judged = await deps.backendFor(key, model, agentId).judge(request, payload.signal)
     } catch (error) {
       const problem = error instanceof JevError ? error.problem : 'unknown'
       // One classification for both surfaces. These used to disagree: the notice
