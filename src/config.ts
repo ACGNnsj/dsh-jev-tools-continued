@@ -89,8 +89,10 @@ export const DEFAULT_SCREEN_ALLOWLIST = ['web_fetch', 'web_search']
 export interface JevSettings {
   /** Master switch. Off means both capabilities are inert, exactly like a missing key. */
   enabled: boolean
-  /** Environment-variable name the key is resolved from, re-resolved on every operation. */
+  /** Environment-variable names the key is resolved from, re-resolved on every operation. */
   apiKeyEnv: string
+  /** Network exit: empty for direct, `system` for the OS proxy, or a proxy URL. */
+  proxy: string
   /** System One API root, a bare host. The vendor's own path is appended to it. */
   baseUrl: string
   /** Jev model id, an alias or a pinned version. The response's own `model` is what gets recorded. */
@@ -166,7 +168,11 @@ export const Config = Schema.object({
   apiKeyEnv: Schema.string()
     .default(DEFAULT_API_KEY_ENV)
     .volatile()
-    .description(`读取 API key 的环境变量名。默认 ${DEFAULT_API_KEY_ENV}（与 TypeSafe 官方 SDK 相同，已在使用官方工具链的人无需配置）。密钥本身永远不会出现在任何响应里。`),
+    .description(`读取 API key 的环境变量名。默认 ${DEFAULT_API_KEY_ENV}（与 TypeSafe 官方 SDK 相同，已在使用官方工具链的人无需配置）。填多个时用逗号分隔（例如 ${DEFAULT_API_KEY_ENV},TYPESAFE_API_KEY_2）：同一会话固定用同一个 key，只有它返回 401 或 429（额度用尽）才换下一个。密钥本身永远不会出现在任何响应里。`),
+  proxy: Schema.string()
+    .default('')
+    .volatile()
+    .description('网络出口。留空直连（默认）；填 system 用操作系统的代理设置（Windows 读系统代理，其它平台读 HTTPS_PROXY）；也可以直接填代理地址，例如 http://127.0.0.1:7897。Jev 按 IP 判定可用地区，境外端点在受限地区只会返回 403，走代理是唯一能让它返回结果的开关。'),
   baseUrl: Schema.string()
     .default(DEFAULT_BASE_URL)
     .volatile()

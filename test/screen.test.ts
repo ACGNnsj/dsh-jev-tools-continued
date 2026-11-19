@@ -24,6 +24,7 @@ import { createContextCache } from '../lib/context-cache.js'
 import { createMemoryLedger } from '../lib/ledger.js'
 import { createMemo } from '../lib/memo.js'
 import type { CredentialsService, PostToolDecision } from '../lib/host.js'
+import { createKeyPool } from '../lib/keys.js'
 
 const KEYED: CredentialsService = {
   resolve: async () => ({ value: 'sk-test', source: 'env' }),
@@ -86,7 +87,7 @@ function harness (options: {
   let messages = 0
   const listener = createPruneListener({
     settings: () => settings,
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async (request) => {

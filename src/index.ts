@@ -22,7 +22,9 @@ import { createGatedLedger, createLazyLedger } from './ledger.js'
 import { createDomainLedger, ledgerDomainSpec } from './ledger-domain.js'
 import { createMemo } from './memo.js'
 import { createDegradeNotices, createDegradeNoticeListener } from './notify.js'
-import { createJevBackend } from './backends/jev.js'
+import { createJevBackend, JevError, type JevProblem } from './backends/jev.js'
+import { createKeyPool, keyRefs } from './keys.js'
+import { dispatcherFor } from './proxy.js'
 import type { DecisionBackend } from './backends/types.js'
 import { createPruneListener } from './features/prune.js'
 import { createSkillSuggestListener } from './features/skill-suggest.js'
@@ -49,6 +51,15 @@ export { Config }
 
 /** Current resolved settings, refreshed on every committed change. */
 let current: JevSettings | undefined
+
+/**
+ * Problems another key can actually fix.
+ *
+ * `unauthorized` is a dead or revoked key; `rate-limited` is the quota answer a
+ * free tier gives. A bad body, a region block or a network failure is the same
+ * on every key, so switching there would only multiply the failures.
+ */
+const SWITCHABLE: ReadonlySet<JevProblem> = new Set<JevProblem>(['unauthorized', 'rate-limited'])
 
 /**
  * Read the settings in force.
@@ -104,6 +115,16 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
   ctx.inject(['skills'], scope => { skills = scope.skills })
 
   /**
+   * The key pool. `apiKeyEnv` may name several variables; the pool pins one per
+   * session and only moves on when that key is spent. Both inputs are closures
+   * so a settings edit reaches the next judgment without a restart.
+   */
+  const keys = createKeyPool(
+    () => credentials,
+    () => keyRefs((current ?? resolveSettings(entry)).apiKeyEnv)
+  )
+
+  /**
    * Build a backend for one operation.
    *
    * The endpoint travels with the key, and both are re-read per operation for
@@ -111,9 +132,44 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
    * restart. A key issued by a self-hosted or third-party System One host earns
    * a 401 against the default host, and because every capability here is
    * fail-open, that 401 would look like a plugin doing nothing.
+   *
+   * The returned backend is also where **key failover** lives: a 401 or a 429
+   * (the two problems a different key can fix) marks the key spent for this
+   * session and the judgment is retried on the next configured key. Everything
+   * else — a bad body, a region block, a network failure — is identical on every
+   * key, so it is rethrown rather than multiplied.
    */
-  const backendFor = (apiKey: string, model: string): DecisionBackend =>
-    createJevBackend({ apiKey, model, baseUrl: (current ?? resolveSettings(entry)).baseUrl })
+  const backendFor = (apiKey: string, model: string, agentId = ''): DecisionBackend => {
+    const build = async (key: string): Promise<DecisionBackend> => {
+      const live = current ?? resolveSettings(entry)
+      const dispatcher = await dispatcherFor(live.proxy)
+      return createJevBackend({
+        apiKey: key,
+        model,
+        baseUrl: live.baseUrl,
+        ...(dispatcher === undefined ? {} : { dispatcher }),
+      })
+    }
+    return {
+      id: 'jev',
+      async judge (request, signal) {
+        const tried: string[] = []
+        let key = apiKey
+        for (;;) {
+          tried.push(key)
+          try {
+            return await (await build(key)).judge(request, signal)
+          } catch (error) {
+            if (!(error instanceof JevError) || !SWITCHABLE.has(error.problem)) throw error
+            keys.exhaust(agentId, key)
+            const next = await keys.next(agentId, tried)
+            if (next === undefined) throw error
+            key = next
+          }
+        }
+      },
+    }
+  }
 
   ctx.inject(['storageDomain'], (scope: ServiceScope) => {
     const facility = scope.storageDomain
@@ -158,7 +214,7 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
 
   ctx.on('tools/post-execute', createPruneListener({
     settings: () => current ?? resolveSettings(entry),
-    credentials: () => credentials,
+    keys,
     backendFor,
     pruner: () => pruner,
     cache,
@@ -185,7 +241,7 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
   // never rejects, so a wrong suggestion costs a line of prompt, not a step.
   ctx.on('agent/pre-step', createSkillSuggestListener({
     settings: () => current ?? resolveSettings(entry),
-    credentials: () => credentials,
+    keys,
     backendFor,
     skills: () => skills,
     cache,
@@ -205,7 +261,7 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
     if (tools === undefined) return
     const shared = {
       settings: () => current ?? resolveSettings(entry),
-      credentials: () => credentials,
+      keys,
       backendFor,
       cache,
       budget,
@@ -228,6 +284,7 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
   registerStatusCommand(ctx, {
     settings: () => current ?? resolveSettings(entry),
     credentials: () => credentials,
+    keys,
     cache,
     budget,
     ledger,

@@ -121,6 +121,7 @@ const CATALOG = {
   'status.key.missing': { zh: 'API key：未配置（变量 {ref}）', en: 'API key: not configured (variable {ref})' },
   'status.key.where': { zh: '  到 {url} 创建后填入本页，或设置该环境变量。', en: '  Create one at {url} and paste it into this page, or set that environment variable.' },
   'status.key.noService': { zh: '  注意：凭据服务不可用，插件无法读取任何 key。', en: '  Note: the credentials service is unavailable, so no key can be read.' },
+  'status.key.pool': { zh: '  多 key：本会话可用 {usable}/{total}（{refs}；× 已用尽，? 未配置）', en: '  Key pool: {usable}/{total} usable in this session ({refs}; × exhausted, ? unconfigured)' },
   'status.ledger': {
     zh: '台账：累计 {total} 条，判定 {judged} 次，跳过 {skipped} 次',
     en: 'Ledger: {total} records cumulative, {judged} judged, {skipped} skipped',

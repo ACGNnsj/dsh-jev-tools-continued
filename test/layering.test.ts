@@ -46,6 +46,7 @@ const LAYERS: Record<string, number> = {
   http: 0,
   i18n: 0,
   memo: 0,
+  proxy: 0,
   source: 0,
   tokens: 0,
 
@@ -57,8 +58,9 @@ const LAYERS: Record<string, number> = {
   request: 1,
   'features/screen': 1,
 
-  // 2 — the vendor binding, and the ledger's neutral surface.
+  // 2 — the vendor binding, the key pool, and the ledger's neutral surface.
   'backends/jev': 2,
+  keys: 2,
   ledger: 2,
 
   // 3 — durable ledger, capabilities, diagnostics, and the model-facing tool.

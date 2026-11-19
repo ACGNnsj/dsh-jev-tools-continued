@@ -57,6 +57,8 @@ export interface JevBackendOptions {
   /** System One API root, a bare host. Defaults to the vendor's own. */
   readonly baseUrl?: string
   readonly timeoutMs?: number
+  /** undici dispatcher (a `ProxyAgent`) when the request has to leave through a proxy. */
+  readonly dispatcher?: unknown
   /** Injectable transport, for tests. */
   readonly deps?: HttpDeps
 }
@@ -127,7 +129,9 @@ export function classifyAnswer (raw: unknown): Answer | undefined {
 export function createJevBackend (options: JevBackendOptions): DecisionBackend {
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const deps = options.deps ?? {}
+  const deps: HttpDeps = options.dispatcher === undefined
+    ? options.deps ?? {}
+    : { ...options.deps, dispatcher: options.dispatcher }
 
   return {
     id: 'jev',

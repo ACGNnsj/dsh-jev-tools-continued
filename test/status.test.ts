@@ -17,6 +17,7 @@ import { createBudget } from '../lib/budget.js'
 import { createContextCache } from '../lib/context-cache.js'
 import { buildStatus, type StatusDeps } from '../lib/status.js'
 import { createMemoryLedger, EMPTY_TOTALS, type JudgmentRecord, type Ledger, type LedgerSummary } from '../lib/ledger.js'
+import { createKeyPool } from '../lib/keys.js'
 
 /** A minimal judgment record. */
 function makeRecord (overrides: Partial<JudgmentRecord> = {}): JudgmentRecord {
@@ -48,6 +49,7 @@ function deps (overrides: Partial<StatusDeps> = {}): StatusDeps {
   return {
     settings: () => resolveSettings(undefined),
     credentials: () => undefined,
+    keys: createKeyPool(() => undefined, () => ['TYPESAFE_API_KEY']),
     cache: createContextCache(),
     budget: createBudget(3, 200),
     ledger: createMemoryLedger(),

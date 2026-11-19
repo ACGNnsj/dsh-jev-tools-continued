@@ -18,6 +18,7 @@ import { createBudget } from '../lib/budget.js'
 import { createContextCache } from '../lib/context-cache.js'
 import { createMemoryLedger } from '../lib/ledger.js'
 import type { CredentialsService, ToolDefinitionLike } from '../lib/host.js'
+import { createKeyPool } from '../lib/keys.js'
 
 const KEYED: CredentialsService = {
   resolve: async () => ({ value: 'sk-test', source: 'env' }),
@@ -36,7 +37,7 @@ function harness (options: { answers?: Answers, throwOnJudge?: boolean, key?: Cr
   const settings = resolveSettings(undefined)
   const tool: ToolDefinitionLike = createJevGateTool({
     settings: () => settings,
-    credentials: () => options.key ?? KEYED,
+    keys: createKeyPool(() => options.key ?? KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async (request) => {
@@ -215,7 +216,7 @@ test('a disabled plugin escalates rather than silently approving', async () => {
   // The master switch lives in settings; rebuild with it off.
   const off = createJevGateTool({
     settings: () => resolveSettings({ enabled: false }),
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({ id: 'fake', judge: async () => { throw new Error('must not be called') } }),
     cache: createContextCache(),
     budget: createBudget(3, 200),
@@ -275,7 +276,7 @@ test('the report is rendered in the conversation\u2019s language', async () => {
   cache.remember('zh', '检查这次交付')
   const zh = createJevGateTool({
     settings: () => resolveSettings(undefined),
-    credentials: () => KEYED,
+    keys: createKeyPool(() => KEYED, () => ['TYPESAFE_API_KEY']),
     backendFor: () => ({
       id: 'fake',
       judge: async () => ({

@@ -11,6 +11,7 @@ This project is pre-1.0: a minor version may contain a breaking change, and the
 
 | Version | Date | State | Summary |
 |---|---|---|---|
+| `0.2.0` | 2026-11-19 | **unreleased** | The network exit is switchable (`proxy`), and several keys can be configured with a switch once one is spent. |
 | `0.1.13` | 2026-09-30 | **published** | The plugin icon: a checklist that becomes a decision path. |
 | `0.1.12` | 2026-09-30 | **published** | The settings card finally reads and writes its own settings: mount row id, `.volatile()` markers, the `configForms` seam, and idempotent resolution, fixed together. |
 | `0.1.11` | 2026-09-30 | **published** | The judgment endpoint and model are finally editable in the configuration card: both settings have existed since 0.1.6, and the card had never drawn them. |
@@ -27,6 +28,27 @@ This project is pre-1.0: a minor version may contain a breaking change, and the
 | `0.1.0` | 2026-09-20 | **published** | The first release, containing everything described below. |
 
 Published on npm: `npm i dsh-jev-tools`. It can also be installed from the repository checkout.
+
+## [0.2.0] — 2026-11-19
+
+### Added
+
+- **A network-exit setting (`proxy`).** Empty connects directly; `system` uses the operating
+  system's proxy (on Windows the `ProxyEnable` / `ProxyServer` values under
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`, elsewhere `HTTPS_PROXY`);
+  an address such as `http://127.0.0.1:7897` is used as given. Underneath it is an undici
+  `ProxyAgent` passed to `fetch` as its `dispatcher` — Node's `fetch` neither reads the WinINET
+  registry nor inherits a proxy configured outside the process. **Why it is needed:** Jev decides
+  availability by exit IP, so a blocked region gets a `403 RegionError` on every direct call, and
+  because this plugin is fail-open that looks like nothing happened at all (`/jev-status` only
+  shows a run of `skip.server`).
+- **Several keys (`apiKeyEnv` may list multiple variable names, comma-separated).** A session stays
+  on one key (the pin in `src/keys.ts`) and moves to the next only when that key answers `401` or
+  `429` (quota spent). A `403`, a `5xx` or a network failure is identical on every key, so switching
+  there would only multiply the same failure. With more than one key, `/jev-status` adds a
+  "key pool: n/m usable in this session" line.
+- **Dependency on `undici`**, only for `ProxyAgent`; when it is missing the module falls back to a
+  direct connection and the plugin still mounts.
 
 ## [0.1.13] — 2026-09-30
 

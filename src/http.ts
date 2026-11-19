@@ -42,6 +42,12 @@ export interface HttpDeps {
   readonly fetchImpl?: typeof fetch
   /** Sleep that rejects on abort, so a cancelled call stops immediately. */
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>
+  /**
+   * undici dispatcher the request goes through — a `ProxyAgent` when the user
+   * asked for a proxy, otherwise absent. Kept as `unknown` so this module stays
+   * free of the optional package.
+   */
+  readonly dispatcher?: unknown
 }
 
 /** One POST to attempt. */
@@ -134,12 +140,16 @@ export async function postJson (request: PostRequest, deps: HttpDeps = {}): Prom
 
     let response: Response
     try {
-      response = await doFetch(request.url, {
+      // `dispatcher` is Node's own extension to `RequestInit` (undici), which is
+      // why the init is widened rather than cast at the call site.
+      const init: RequestInit & { dispatcher?: unknown } = {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...request.headers },
         body: JSON.stringify(request.body),
         signal: combined,
-      })
+      }
+      if (deps.dispatcher !== undefined) (init as { dispatcher?: unknown }).dispatcher = deps.dispatcher
+      response = await doFetch(request.url, init)
     } catch (error) {
       if (request.signal.aborted) {
         return { kind: 'error', problem: 'aborted', message: '请求已取消', attempt }

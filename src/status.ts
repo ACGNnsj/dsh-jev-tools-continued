@@ -10,12 +10,12 @@
  * @module dsh-jev-tools/status
  */
 
-import { resolveApiKey } from './credentials.js'
 import { detectLang, t, type Lang } from './i18n.js'
 import { TYPESAFE_KEYS_URL, type JevSettings } from './config.js'
 import { estimateCostUsd, USD_PER_MTOK } from './request.js'
 import type { ContextCache } from './context-cache.js'
 import type { Budget } from './budget.js'
+import type { KeyPool } from './keys.js'
 import type { Ledger } from './ledger.js'
 import type { CredentialsService, CommandsService, PluginContext, ServiceScope } from './host.js'
 
@@ -23,6 +23,7 @@ import type { CredentialsService, CommandsService, PluginContext, ServiceScope }
 export interface StatusDeps {
   readonly settings: () => JevSettings
   readonly credentials: () => CredentialsService | undefined
+  readonly keys: KeyPool
   readonly cache: ContextCache
   readonly budget: Budget
   readonly ledger: Ledger
@@ -77,15 +78,28 @@ export async function buildStatus (deps: StatusDeps, agentId?: string): Promise<
   lines.push('')
 
   // Credentials: re-resolved here exactly as every operation does, so this
-  // reports what the next judgment will actually see.
-  const key = await resolveApiKey(deps.credentials(), settings.apiKeyEnv)
-  if (key.ok) {
-    lines.push(t(lang, 'status.key.ok', { ref: settings.apiKeyEnv, source: key.source }))
-  } else if (key.problem === 'invalid-name') {
-    lines.push(t(lang, 'status.key.badName', { ref: settings.apiKeyEnv }))
-  } else {
-    lines.push(t(lang, 'status.key.missing', { ref: settings.apiKeyEnv }))
+  // reports what the next judgment will actually see. With several references
+  // configured the pinned key is the first line's, and the pool line says how
+  // many are left after this session's switches.
+  const standing = await deps.keys.state(agentId ?? '')
+  const primary = standing[0]
+  if (primary !== undefined && primary.ok) {
+    lines.push(t(lang, 'status.key.ok', { ref: primary.ref, source: primary.source ?? '' }))
+  } else if (primary !== undefined && primary.problem === 'invalid-name') {
+    lines.push(t(lang, 'status.key.badName', { ref: primary.ref }))
+  } else if (primary !== undefined) {
+    lines.push(t(lang, 'status.key.missing', { ref: primary.ref }))
     lines.push(t(lang, 'status.key.where', { url: TYPESAFE_KEYS_URL }))
+  }
+  if (standing.length > 1) {
+    const usable = standing.filter(entry => entry.ok && !entry.exhausted).length
+    lines.push(t(lang, 'status.key.pool', {
+      usable,
+      total: standing.length,
+      refs: standing
+        .map(entry => `${entry.ref}${entry.exhausted ? '×' : entry.ok ? '' : '?'}`)
+        .join(' '),
+    }))
   }
   if (deps.credentials() === undefined) lines.push(t(lang, 'status.key.noService'))
   lines.push('')
