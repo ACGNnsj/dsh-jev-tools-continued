@@ -132,6 +132,8 @@ window.__ModuleLoader__.load({
         refsSaved: '变量名已保存；凭据按新的变量名重新读取。',
         refsHint: '逗号分隔可填多把，例如 TYPESAFE_API_KEY,TYPESAFE_API_KEY_2：同一会话固定用一把，只有它 401/429 才换下一把。',
         refsBad: '至少填一个变量名。',
+        refsDup: '这个名字已经在用了，换一个。',
+        refsRename: '新变量名',
         refsAdd: '添加一把',
         refsRemove: '移除',
         configuredMany: (done, total) => `已配置 ${done}/${total}`,
@@ -183,6 +185,8 @@ window.__ModuleLoader__.load({
         refsSaved: 'Reference saved; credentials are re-read from the new names.',
         refsHint: 'Comma-separated for several keys, e.g. TYPESAFE_API_KEY,TYPESAFE_API_KEY_2: a session stays on one key and moves on only when it answers 401 or 429.',
         refsBad: 'Enter at least one variable name.',
+        refsDup: 'That name is already in the list.',
+        refsRename: 'New variable name',
         refsAdd: 'Add a key',
         refsRemove: 'Remove',
         configuredMany: (done, total) => `configured ${done}/${total}`,
@@ -334,6 +338,10 @@ window.__ModuleLoader__.load({
         const [infos, setInfos] = React.useState(null)
         /** Staged key values, keyed by reference name — one input per configured reference. */
         const [drafts, setDrafts] = React.useState({})
+        /** Latest settings writer: callbacks defined before `patch` call through here. */
+        const patchRef = React.useRef(null)
+        /** Staged reference renames, keyed by the saved name — one input per row. */
+        const [refDrafts, setRefDrafts] = React.useState({})
         const [note, setNote] = React.useState('')
         const [busy, setBusy] = React.useState(false)
         /** Whether the host's profile accepts form edits at all. */
@@ -462,23 +470,44 @@ window.__ModuleLoader__.load({
           return form.subscribe(() => { void load() })
         }, [form, load])
 
-        /** Write one reference's staged key, then re-read: the host is the only authority on whether it landed. */
-        const saveKey = React.useCallback(async (name) => {
-          const staged = drafts[name] ?? ''
-          if (staged === '') return
+        /**
+         * Save one row: a rename, a key, or both. Defined after `patch`, whose
+         * operation list the rename writes through. A rename rewrites the whole
+         * reference list with this entry swapped out, then the key (when one is
+         * staged) lands under the new name — so a row added as `NEW_KEY` becomes
+         * whatever was typed into its name field in a single save.
+         */
+        const saveRow = React.useCallback(async (oldName) => {
+          const newName = (refDrafts[oldName] ?? oldName).trim()
+          const keyVal = drafts[oldName] ?? ''
+          if (newName === '') return
+          if (refs.some((other) => other !== oldName && other === newName)) return
           setBusy(true)
           setNote('')
           const strings = S[langOf(ctx)]
           try {
-            const credentialsApi = remote('remote.credentials')
-            if (credentialsApi === undefined) {
-              setNote(strings.noCredentialService)
-              return
+            if (newName !== oldName) {
+              const value = refs.map((entry) => entry === oldName ? newName : entry).join(', ')
+              const moved = await patchRef.current([{ op: 'set', path: ['apiKeyEnv'], value }])
+              if (moved === false) return
+              setRefDrafts((previous) => {
+                const next = Object.assign({}, previous)
+                delete next[oldName]
+                return next
+              })
             }
-            await credentialsApi.set(name, staged)
+            if (keyVal !== '') {
+              const credentialsApi = remote('remote.credentials')
+              if (credentialsApi === undefined) {
+                setNote(strings.noCredentialService)
+                return
+              }
+              await credentialsApi.set(newName, keyVal)
+            }
             setDrafts((previous) => {
               const next = Object.assign({}, previous)
-              delete next[name]
+              delete next[oldName]
+              delete next[newName]
               return next
             })
             await load()
@@ -488,7 +517,7 @@ window.__ModuleLoader__.load({
           } finally {
             setBusy(false)
           }
-        }, [drafts, load])
+        }, [refDrafts, drafts, refs, load])
 
         /**
          * Write one atomic operation list through the shared form, then re-read.
@@ -521,6 +550,8 @@ window.__ModuleLoader__.load({
             setBusy(false)
           }
         }, [form, revision, load])
+
+        patchRef.current = patch
 
         /**
          * Save the reference list, and only when it changed. Writing an unchanged
@@ -659,14 +690,25 @@ window.__ModuleLoader__.load({
             h('div', { style: { fontSize: '11px', color: MUTED, lineHeight: '16px' } }, t.refsHint)),
 
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
-            ...entries.map((entry) => h('div', {
+            ...entries.map((entry) => {
+              const stagedName = refDrafts[entry.name] ?? entry.name
+              const trimmedName = stagedName.trim()
+              const nameChanged = trimmedName !== entry.name
+              const keyStaged = drafts[entry.name] ?? ''
+              const dup = trimmedName !== '' && refs.some((other) => other !== entry.name && other === trimmedName)
+              const rowDirty = nameChanged || keyStaged !== ''
+              const rowBad = trimmedName === '' || dup
+              const rowSaveDisabled = busy || !entry.writable || !rowDirty || rowBad
+              return h('div', {
               key: entry.name,
               style: { display: 'flex', flexDirection: 'column', gap: '6px' },
             },
             row(entry.name, entry.text),
+            field(t.refsHeading, stagedName, (next) => { setRefDrafts((previous) => Object.assign({}, previous, { [entry.name]: next })) }, t.refsRename, endpointReadOnly || busy),
+            dup ? h('div', { style: { fontSize: '11px', color: MUTED } }, t.refsDup) : null,
             h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
               h('input', Object.assign({
-                value: drafts[entry.name] ?? '',
+                value: keyStaged,
                 placeholder: entry.ok ? t.keyPlaceholderSet : t.keyPlaceholder(entry.name),
                 disabled: busy || !entry.writable,
                 onChange: (event) => { setDrafts((previous) => Object.assign({}, previous, { [entry.name]: event.target.value })) },
@@ -674,9 +716,9 @@ window.__ModuleLoader__.load({
               }, maskedProps())),
               h('button', {
                 type: 'button',
-                disabled: busy || (drafts[entry.name] ?? '') === '' || !entry.writable,
-                onClick: () => { void saveKey(entry.name) },
-                style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: busy || (drafts[entry.name] ?? '') === '' ? 'default' : 'pointer' },
+                disabled: rowSaveDisabled,
+                onClick: () => { void saveRow(entry.name) },
+                style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: rowSaveDisabled ? 'default' : 'pointer' },
               }, t.save),
               h('button', {
                 type: 'button',
@@ -684,7 +726,7 @@ window.__ModuleLoader__.load({
                 onClick: () => { void removeRef(entry.name) },
                 style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: busy || refs.length <= 1 ? 'default' : 'pointer' },
               }, t.refsRemove)),
-            entry.writable ? null : h('div', { style: { fontSize: '11px', color: MUTED } }, t.readonlyRef(entry.name))))),
+            entry.writable ? null : h('div', { style: { fontSize: '11px', color: MUTED } }, t.readonlyRef(entry.name)))})),
 
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px', borderTop: `1px solid ${BORDER}` } },
             h('div', { style: { fontSize: '12px', fontWeight: 600, color: TEXT } }, t.endpointHeading),

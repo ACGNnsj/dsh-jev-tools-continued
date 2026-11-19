@@ -489,6 +489,46 @@ test('adding a reference appends a fresh name to the list', async () => {
   ])
 })
 
+test('a new row is named and filled in one save', async () => {
+  const page = await harness()
+  buttonWith(page.tree, '添加一把').props.onClick()
+  await flush()
+  assert.deepEqual(page.updates, [
+    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, NEW_KEY' }], revision: 7 },
+  ])
+
+  // The new row carries its own name field: rename it and paste its key, then
+  // one save moves both — no comma-string surgery.
+  let tree = await page.rerender()
+  const names = nodesOf(tree, node => node.type === 'input' && node.props.placeholder === '新变量名')
+  assert.equal(names.length, 2, 'one name field per row')
+  type(names[1]!, 'TYPESAFE_API_KEY_2')
+  type(inputWith(tree, '粘贴 NEW_KEY'), 'second-key')
+  tree = await page.rerender()
+  const saves = nodesOf(tree, node => node.type === 'button' && textOf(node) === '保存')
+  assert.equal(saves.length, 2, 'one row save per reference')
+  saves[1]!.props.onClick()
+  await flush()
+  assert.deepEqual(page.updates.at(-1), {
+    ns: 'dsh-jev-tools',
+    ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' }],
+    revision: 8,
+  })
+  assert.deepEqual(page.sets, [{ ref: 'TYPESAFE_API_KEY_2', value: 'second-key' }])
+})
+
+test('a duplicate name blocks the row save', async () => {
+  const page = await harness({ value: { apiKeyEnv: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' } })
+  const names = nodesOf(page.tree, node => node.type === 'input' && node.props.placeholder === '新变量名')
+  assert.equal(names.length, 2, 'one name field per row')
+  type(names[0]!, 'TYPESAFE_API_KEY_2')
+  const tree = await page.rerender()
+  const saves = nodesOf(tree, node => node.type === 'button' && textOf(node) === '保存')
+  assert.equal(saves[0]!.props.disabled, true, 'a duplicate name must not save')
+  assert.match(allText(tree), /已经在用/)
+  assert.deepEqual(page.updates, [], 'a rejected rename must not reach the settings seam')
+})
+
 test('removing a reference drops it from the list', async () => {
   const page = await harness({ value: { apiKeyEnv: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' } })
   const removes = nodesOf(page.tree, node => node.type === 'button' && textOf(node) === '移除')
