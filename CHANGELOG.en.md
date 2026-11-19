@@ -49,6 +49,10 @@ Published on npm: `npm i dsh-jev-tools`. It can also be installed from the repos
   "key pool: n/m usable in this session" line.
 - **Dependency on `undici`**, only for `ProxyAgent`; when it is missing the module falls back to a
   direct connection and the plugin still mounts.
+- **The settings card draws all seven.** It used to draw six, leaving `proxy` and the multi-key
+  reference to the settings page; the reference input, the network-exit input and the per-key
+  inputs now all live on the card, with `test/client.test.ts` and `test/bundle-contract.test.ts`
+  locking reachability.
 
 ## [0.1.13] — 2026-09-30
 

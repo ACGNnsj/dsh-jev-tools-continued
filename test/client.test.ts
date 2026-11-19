@@ -8,10 +8,11 @@
  * 0.1.10 — declared, wired on the host side, and unreachable from the page
  * (issue #3).
  *
- * So the assertions here are about reachability, not styling: the two endpoint
- * fields exist and carry the host's values, an edit reaches the settings seam
- * with the revision the host reported, an invalid or unchanged draft reaches it
- * not at all, and both languages are worded.
+ * So the assertions here are about reachability, not styling: the endpoint
+ * fields, the network exit and the key references all exist and carry the
+ * host's values, an edit reaches the settings seam with the revision the host
+ * reported, an invalid or unchanged draft reaches it not at all, every one of
+ * several references gets its own key input, and both languages are worded.
  *
  * The card is a lazy-CJS bundle that talks to a real React and a real host, so
  * it is rendered here through a React stub with exactly the hooks it uses. The
@@ -190,6 +191,8 @@ interface CardHarness {
   readonly tree: unknown
   /** Every settings write the card made, as the shared form received it. */
   readonly updates: Array<{ ns: string, ops: Array<{ op: string, path: string[], value?: unknown }>, revision: unknown }>
+  /** Every key write the card made, as the credentials seam received it. */
+  readonly sets: Array<{ ref: string, value: unknown }>
   /** Re-render after a state change, e.g. after typing. */
   rerender: () => Promise<unknown>
 }
@@ -209,6 +212,7 @@ interface CardHarness {
 async function harness (options: { value?: Record<string, unknown>, locale?: string, servedNamespace?: string } = {}): Promise<CardHarness> {
   const { React, render } = createReact()
   const updates: CardHarness['updates'] = []
+  const sets: CardHarness['sets'] = []
   const served = options.servedNamespace ?? NS
   const store = {
     value: {
@@ -216,6 +220,7 @@ async function harness (options: { value?: Record<string, unknown>, locale?: str
       apiKeyEnv: 'TYPESAFE_API_KEY',
       baseUrl: 'https://api.typesafe.ai',
       model: 'jev-latest',
+      proxy: '',
       prune: { enabled: true },
       suggest: { enabled: true },
       ...(options.value ?? {}),
@@ -271,7 +276,7 @@ async function harness (options: { value?: Record<string, unknown>, locale?: str
           ok: true,
           value: Object.fromEntries(refs.map(ref => [ref, { configured: false, writable: true }])),
         }),
-        set: async () => {},
+        set: async (ref: string, value: unknown) => { sets.push({ ref, value }) },
       },
     },
     slots: {
@@ -290,6 +295,7 @@ async function harness (options: { value?: Record<string, unknown>, locale?: str
   return {
     tree: await render(card, { view: 'page' }),
     updates,
+    sets,
     rerender: () => render(card, { view: 'page' }),
   }
 }
@@ -407,4 +413,69 @@ test('a namespace the host does not publish is named, not drawn as an empty form
   assert.match(allText(page.tree), /host serves: jev-tools/, 'and what the host does serve')
   assert.equal(buttonWith(page.tree, 'Save endpoint').props.disabled, true)
   assert.deepEqual(page.updates, [], 'an unreadable namespace must not enable writes')
+})
+
+test('the card draws the network exit with the host value', async () => {
+  const page = await harness()
+  assert.equal(inputWith(page.tree, 'system').props.value, '', 'empty means direct')
+  assert.match(allText(page.tree), /网络出口/)
+
+  const proxied = await harness({ value: { proxy: 'system' } })
+  assert.equal(inputWith(proxied.tree, 'system').props.value, 'system')
+})
+
+test('a proxy edit reaches the seam, and garbage never does', async () => {
+  const page = await harness()
+  type(inputWith(page.tree, 'system'), 'not a proxy')
+  let tree = await page.rerender()
+  assert.equal(buttonWith(tree, '保存端点').props.disabled, true, 'garbage must block the save')
+  assert.match(allText(tree), /网络出口只能/)
+  assert.deepEqual(page.updates, [], 'a rejected draft must not reach the settings seam')
+
+  type(inputWith(tree, 'system'), 'system')
+  tree = await page.rerender()
+  assert.equal(buttonWith(tree, '保存端点').props.disabled, false, 'a changed exit must be writable')
+  buttonWith(tree, '保存端点').props.onClick()
+  await flush()
+  assert.deepEqual(page.updates, [
+    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['proxy'], value: 'system' }], revision: 7 },
+  ])
+})
+
+test('several references each get their own key input', async () => {
+  const page = await harness({ value: { apiKeyEnv: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' } })
+  assert.equal(inputWith(page.tree, '粘贴 TYPESAFE_API_KEY').props.value, '')
+  assert.equal(inputWith(page.tree, '粘贴 TYPESAFE_API_KEY_2').props.value, '')
+  assert.match(allText(page.tree), /未配置/, 'neither key is configured yet')
+
+  // The two key saves share a label, so they are told apart by position: the
+  // first one belongs to the first reference.
+  const saves = nodesOf(page.tree, node => node.type === 'button' && textOf(node).includes('保存'))
+    .filter(node => textOf(node) === '保存')
+  assert.equal(saves.length, 2, 'one key save per reference')
+  type(inputWith(page.tree, '粘贴 TYPESAFE_API_KEY_2'), 'second-key')
+  await page.rerender()
+  const again = nodesOf(await page.rerender(), node => node.type === 'button' && textOf(node) === '保存')
+  again[1]!.props.onClick()
+  await flush()
+  assert.deepEqual(page.sets, [{ ref: 'TYPESAFE_API_KEY_2', value: 'second-key' }])
+})
+
+test('the reference list itself is editable on the card', async () => {
+  const page = await harness()
+  type(inputWith(page.tree, 'TYPESAFE_API_KEY'), 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2')
+  const tree = await page.rerender()
+  assert.equal(buttonWith(tree, '保存变量名').props.disabled, false, 'a changed reference list must be writable')
+  buttonWith(tree, '保存变量名').props.onClick()
+  await flush()
+  assert.deepEqual(page.updates, [
+    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' }], revision: 7 },
+  ])
+})
+
+test('the reference and exit fields are worded in both languages', async () => {
+  const en = await harness({ locale: 'en' })
+  assert.match(allText(en.tree), /Key reference/)
+  assert.match(allText(en.tree), /Network exit/)
+  assert.equal(buttonWith(en.tree, 'Save reference').props.disabled, true, 'nothing changed, so there is nothing to save')
 })

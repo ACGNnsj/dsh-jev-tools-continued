@@ -44,6 +44,7 @@
   key 上完全一样，切换只会把同一次失败乘上 key 的数量，所以不切。`/jev-status` 在多 key 时多
   一行「多 key：本会话可用 n/m」。
 - **依赖 `undici`**，只为 `ProxyAgent`；缺失时该模块回落为直连，插件照常挂载。
+- **设置卡片画出全部七项。** 之前卡片只画六项，`proxy` 与多 key 的变量名只能在设置页改；现在变量名输入框、网络出口输入框与逐把 key 输入框都在卡片上，`test/client.test.ts` 与 `test/bundle-contract.test.ts` 锁住可达性。
 
 ## [0.1.13] — 2026-09-30
 

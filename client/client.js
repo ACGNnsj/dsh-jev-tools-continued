@@ -85,6 +85,28 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * Split the key-reference setting into usable variable names.
+     *
+     * Commas, semicolons and whitespace all separate, so `A,B`, `A B` and a
+     * pasted `A, B` all mean two keys. Duplicates collapse: resolving the same
+     * variable twice would pin the same key and switch to itself. Mirrors
+     * `keyRefs()` on the host side; the card cannot import it, so the rule
+     * lives here too.
+     *
+     * @param {unknown} raw - the `apiKeyEnv` setting as configured.
+     * @returns {string[]} the reference names, in order, without blanks or duplicates.
+     */
+    function splitRefs (raw) {
+      const refs = []
+      if (typeof raw !== 'string') return refs
+      for (const part of raw.split(/[\s,;]+/)) {
+        const ref = part.trim()
+        if (ref !== '' && refs.indexOf(ref) === -1) refs.push(ref)
+      }
+      return refs
+    }
+
     /** Every user-facing string, in both languages. */
     const S = {
       zh: {
@@ -105,6 +127,15 @@ window.__ModuleLoader__.load({
         noCredentialService: '凭据服务不可用，无法保存。可改用环境变量方式配置。',
         noSettingsService: '设置服务不可用。',
         readonlyRef: (ref) => `环境变量 ${ref} 由只读来源提供，无法在界面上覆盖。要修改请改动它的来源。`,
+        refsHeading: '密钥变量名',
+        refsSave: '保存变量名',
+        refsSaved: '变量名已保存；凭据按新的变量名重新读取。',
+        refsHint: '逗号分隔可填多把，例如 TYPESAFE_API_KEY,TYPESAFE_API_KEY_2：同一会话固定用一把，只有它 401/429 才换下一把。',
+        refsBad: '至少填一个变量名。',
+        configuredMany: (done, total) => `已配置 ${done}/${total}`,
+        proxyLabel: '网络出口',
+        proxyHint: '留空直连；填 system 走系统代理；也可直接填地址，如 http://127.0.0.1:7897。受限地区直连只会拿到 403。',
+        proxyBad: '网络出口只能留空、填 system，或填 http(s) 地址。',
         endpointHeading: '判定端点',
         endpointBase: '服务地址',
         endpointModel: '模型',
@@ -145,6 +176,15 @@ window.__ModuleLoader__.load({
         noCredentialService: 'The credentials service is unavailable, so the key cannot be stored here. Use an environment variable instead.',
         noSettingsService: 'The settings service is unavailable.',
         readonlyRef: (ref) => `${ref} comes from a read-only source and cannot be overridden here; change that source instead.`,
+        refsHeading: 'Key reference',
+        refsSave: 'Save reference',
+        refsSaved: 'Reference saved; credentials are re-read from the new names.',
+        refsHint: 'Comma-separated for several keys, e.g. TYPESAFE_API_KEY,TYPESAFE_API_KEY_2: a session stays on one key and moves on only when it answers 401 or 429.',
+        refsBad: 'Enter at least one variable name.',
+        configuredMany: (done, total) => `configured ${done}/${total}`,
+        proxyLabel: 'Network exit',
+        proxyHint: 'Empty connects directly; system uses the operating system proxy; a URL such as http://127.0.0.1:7897 is used as given. A blocked region only ever gets a 403 on a direct connection.',
+        proxyBad: 'The network exit must be empty, system, or an http(s) URL.',
         endpointHeading: 'Judgment endpoint',
         endpointBase: 'Service address',
         endpointModel: 'Model',
@@ -286,8 +326,10 @@ window.__ModuleLoader__.load({
         const [lang, setLang] = React.useState(() => langOf(ctx))
         const [settings, setSettings] = React.useState(null)
         const [revision, setRevision] = React.useState(undefined)
-        const [credential, setCredential] = React.useState(null)
-        const [draft, setDraft] = React.useState('')
+        /** One credential standing per reference, keyed by reference name. */
+        const [infos, setInfos] = React.useState(null)
+        /** Staged key values, keyed by reference name — one input per configured reference. */
+        const [drafts, setDrafts] = React.useState({})
         const [note, setNote] = React.useState('')
         const [busy, setBusy] = React.useState(false)
         /** Whether the host's profile accepts form edits at all. */
@@ -300,6 +342,8 @@ window.__ModuleLoader__.load({
         // happen per keystroke.
         const [baseUrlDraft, setBaseUrlDraft] = React.useState('')
         const [modelDraft, setModelDraft] = React.useState('')
+        const [apiKeyEnvDraft, setApiKeyEnvDraft] = React.useState('')
+        const [proxyDraft, setProxyDraft] = React.useState('')
         const seeded = React.useRef(false)
 
         /**
@@ -337,6 +381,8 @@ window.__ModuleLoader__.load({
           seeded.current = true
           setBaseUrlDraft(typeof settings.baseUrl === 'string' ? settings.baseUrl : '')
           setModelDraft(typeof settings.model === 'string' ? settings.model : '')
+          setApiKeyEnvDraft(typeof settings.apiKeyEnv === 'string' ? settings.apiKeyEnv : '')
+          setProxyDraft(typeof settings.proxy === 'string' ? settings.proxy : '')
         }, [settings])
 
         // Follow the DSH language: re-render whenever the locale changes.
@@ -346,13 +392,16 @@ window.__ModuleLoader__.load({
           return locale.subscribe(() => { setLang(langOf(ctx)) })
         }, [])
 
-        const ref = settings !== null && typeof settings.apiKeyEnv === 'string' && settings.apiKeyEnv !== ''
-          ? settings.apiKeyEnv
-          : DEFAULT_REF
+        /** The configured references, in order — one key input each. Falls back to the default reference. */
+        const rawRef = settings !== null && typeof settings.apiKeyEnv === 'string' ? settings.apiKeyEnv : ''
+        const refs = splitRefs(rawRef).length === 0 ? [DEFAULT_REF] : splitRefs(rawRef)
+        /** Re-seed the credential read whenever the reference list changes. */
+        const refsKey = refs.join(',')
 
         /** The endpoint the host reports, before this card has read a value. */
         const settingsBaseUrl = settings !== null && typeof settings.baseUrl === 'string' ? settings.baseUrl : ''
         const settingsModel = settings !== null && typeof settings.model === 'string' ? settings.model : ''
+        const settingsProxy = settings !== null && typeof settings.proxy === 'string' ? settings.proxy : ''
         /** The endpoint the copy names: the configured one, or the vendor's own until the host answers. */
         const effectiveBaseUrl = settingsBaseUrl === '' ? DEFAULT_BASE_URL : settingsBaseUrl
         const openRouter = isOpenRouter(effectiveBaseUrl)
@@ -380,20 +429,26 @@ window.__ModuleLoader__.load({
             }
             const credentialsApi = remote('remote.credentials')
             if (credentialsApi !== undefined) {
-              const described = valueOf(await credentialsApi.describe([ref]))
-              const info = described !== null && described !== undefined ? described[ref] : undefined
-              setCredential(info ?? { configured: false, writable: true })
+              const described = valueOf(await credentialsApi.describe(refs))
+              const next = {}
+              for (const name of refs) {
+                const info = described !== null && described !== undefined ? described[name] : undefined
+                next[name] = info !== null && info !== undefined ? info : { configured: false, writable: true }
+              }
+              setInfos(next)
             } else {
-              setCredential({ configured: false, writable: true, unavailable: true })
+              const next = {}
+              for (const name of refs) next[name] = { configured: false, writable: true, unavailable: true }
+              setInfos(next)
             }
           } catch (error) {
             setNote(S[langOf(ctx)].readFailed(String(error)))
           }
-        }, [ref])
+        }, [refsKey])
 
         React.useEffect(() => {
-          if (settings === null && credential === null) void load()
-        }, [settings, credential, load])
+          if (settings === null && infos === null) void load()
+        }, [settings, infos, load])
 
         // Live updates: the shared form derives from the browser's one settings
         // mirror, so a write from anywhere — this card, the Plugins page, another
@@ -403,9 +458,10 @@ window.__ModuleLoader__.load({
           return form.subscribe(() => { void load() })
         }, [form, load])
 
-        /** Write the staged key, then re-read: the host is the only authority on whether it landed. */
-        const saveKey = React.useCallback(async () => {
-          if (draft === '') return
+        /** Write one reference's staged key, then re-read: the host is the only authority on whether it landed. */
+        const saveKey = React.useCallback(async (name) => {
+          const staged = drafts[name] ?? ''
+          if (staged === '') return
           setBusy(true)
           setNote('')
           const strings = S[langOf(ctx)]
@@ -415,8 +471,12 @@ window.__ModuleLoader__.load({
               setNote(strings.noCredentialService)
               return
             }
-            await credentialsApi.set(ref, draft)
-            setDraft('')
+            await credentialsApi.set(name, staged)
+            setDrafts((previous) => {
+              const next = Object.assign({}, previous)
+              delete next[name]
+              return next
+            })
             await load()
             setNote(strings.saved)
           } catch (error) {
@@ -424,7 +484,7 @@ window.__ModuleLoader__.load({
           } finally {
             setBusy(false)
           }
-        }, [draft, ref, load])
+        }, [drafts, load])
 
         /**
          * Write one atomic operation list through the shared form, then re-read.
@@ -459,6 +519,19 @@ window.__ModuleLoader__.load({
         }, [form, revision, load])
 
         /**
+         * Save the reference list, and only when it changed. Writing an unchanged
+         * value would turn "I looked at it" into an override, which pins the value
+         * against future default changes — the same rule the endpoint fields follow.
+         * Defined after `patch`, whose operation list it writes through.
+         */
+        const saveApiKeyEnv = React.useCallback(async () => {
+          const value = apiKeyEnvDraft.trim()
+          if (settings === null || splitRefs(value).length === 0) return
+          if (value === rawRef) return
+          if (await patch([{ op: 'set', path: ['apiKeyEnv'], value }])) setNote(S[langOf(ctx)].refsSaved)
+        }, [apiKeyEnvDraft, rawRef, settings, patch])
+
+        /**
          * Save the endpoint fields, and only the ones that changed.
          *
          * Writing an unchanged field would turn "I looked at it" into an
@@ -469,19 +542,38 @@ window.__ModuleLoader__.load({
           const ops = []
           const baseUrl = baseUrlDraft.trim()
           const model = modelDraft.trim()
+          const proxy = proxyDraft.trim()
           if (settings === null) return
           if (baseUrl !== settingsBaseUrl) ops.push({ op: 'set', path: ['baseUrl'], value: baseUrl })
           if (model !== settingsModel) ops.push({ op: 'set', path: ['model'], value: model })
+          if (proxy !== settingsProxy) ops.push({ op: 'set', path: ['proxy'], value: proxy })
           if (ops.length === 0) return
           if (await patch(ops)) setNote(S[langOf(ctx)].endpointSaved)
-        }, [baseUrlDraft, modelDraft, settings, patch])
+        }, [baseUrlDraft, modelDraft, proxyDraft, settings, patch])
 
-        const configured = credential !== null && credential.configured === true
-        const status = credential === null
+        /** One row per reference: whether its key resolves, and whether the card may write it. */
+        const entries = refs.map((name) => {
+          const info = infos !== null ? infos[name] : undefined
+          const ok = info !== undefined && info !== null && info.configured === true
+          return {
+            name,
+            ok,
+            writable: info === undefined || info === null || info.writable !== false,
+            text: infos === null
+              ? t.reading
+              : ok
+                ? t.configured((info !== null && info !== undefined && info.source !== undefined) ? info.source : t.unknownSource)
+                : t.unconfigured,
+          }
+        })
+        const configuredCount = entries.filter((entry) => entry.ok).length
+        const status = infos === null
           ? t.reading
-          : configured
-            ? t.configured(credential.source ?? t.unknownSource)
-            : t.unconfigured
+          : configuredCount === 0
+            ? t.unconfigured
+            : refs.length === 1
+              ? entries[0].text
+              : t.configuredMany(configuredCount, refs.length)
 
         if (view === 'summary') {
           return h('div', { style: { fontSize: '12px', color: MUTED } }, t.summary(status))
@@ -490,52 +582,77 @@ window.__ModuleLoader__.load({
         const pruneOn = settings !== null && settings.prune !== undefined && settings.prune.enabled === true
         const suggestOn = settings !== null && settings.suggest !== undefined && settings.suggest.enabled === true
         const masterOn = settings !== null && settings.enabled === true
-        const writable = credential === null || credential.writable !== false
 
         // What the endpoint section can do right now. An invalid draft blocks
         // the save and says why, rather than being stored and failing later as
         // silence: every capability in this plugin is fail-open.
         const baseUrlValue = baseUrlDraft.trim()
         const modelValue = modelDraft.trim()
+        const proxyValue = proxyDraft.trim()
+        const apiKeyEnvValue = apiKeyEnvDraft.trim()
         const endpointReadOnly = settings === null || busy || !formWritable
         // An empty address is invalid too: storing one would POST to a relative
         // URL, and that failure is invisible everywhere else.
         const baseUrlInvalid = !BASE_URL_RE.test(baseUrlValue)
         const modelInvalid = modelValue === ''
+        const proxyInvalid = !(proxyValue === '' || proxyValue === 'system' || BASE_URL_RE.test(proxyValue))
+        const apiKeyEnvBad = splitRefs(apiKeyEnvValue).length === 0
+        const apiKeyEnvDirty = settings !== null && apiKeyEnvValue !== rawRef
+        const apiKeyEnvSaveDisabled = endpointReadOnly || !apiKeyEnvDirty || apiKeyEnvBad
         const endpointDirty = settings !== null
-          && (baseUrlValue !== settingsBaseUrl || modelValue !== settingsModel)
-        const endpointSaveDisabled = endpointReadOnly || !endpointDirty || baseUrlInvalid || modelInvalid
+          && (baseUrlValue !== settingsBaseUrl || modelValue !== settingsModel || proxyValue !== settingsProxy)
+        const endpointSaveDisabled = endpointReadOnly || !endpointDirty || baseUrlInvalid || modelInvalid || proxyInvalid
 
         return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px', padding: '4px 0' } },
           h('div', { style: { fontSize: '13px', fontWeight: 600, color: TEXT } }, t.heading),
 
           row(t.status, status),
-          configured ? null : h('div', { style: { fontSize: '12px', color: MUTED } }, t.intro),
+          configuredCount === 0 ? h('div', { style: { fontSize: '12px', color: MUTED } }, t.intro) : null,
           h('div', { style: { fontSize: '12px' } },
             link(openRouter ? OPENROUTER_KEYS_URL : KEYS_URL, openRouter ? t.getKeyOpenRouter : t.getKeyTypeSafe)),
 
-          h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-            h('input', Object.assign({
-              value: draft,
-              placeholder: configured ? t.keyPlaceholderSet : t.keyPlaceholder(ref),
-              disabled: busy || !writable,
-              onChange: (event) => { setDraft(event.target.value) },
-              style: { flex: 1, minWidth: 0, fontSize: '12px', padding: '6px 8px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT },
-            }, maskedProps())),
-            h('button', {
-              type: 'button',
-              disabled: busy || draft === '' || !writable,
-              onClick: () => { void saveKey() },
-              style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: busy || draft === '' ? 'default' : 'pointer' },
-            }, t.save)),
-          writable ? null : h('div', { style: { fontSize: '11px', color: MUTED } }, t.readonlyRef(ref)),
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px', borderTop: `1px solid ${BORDER}` } },
+            field(t.refsHeading, apiKeyEnvDraft, (next) => { setApiKeyEnvDraft(next) }, DEFAULT_REF, endpointReadOnly),
+            apiKeyEnvBad ? h('div', { style: { fontSize: '11px', color: MUTED } }, t.refsBad) : null,
+            h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+              h('button', {
+                type: 'button',
+                disabled: apiKeyEnvSaveDisabled,
+                onClick: () => { void saveApiKeyEnv() },
+                style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: apiKeyEnvSaveDisabled ? 'default' : 'pointer' },
+              }, t.refsSave)),
+            h('div', { style: { fontSize: '11px', color: MUTED, lineHeight: '16px' } }, t.refsHint)),
+
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+            ...entries.map((entry) => h('div', {
+              key: entry.name,
+              style: { display: 'flex', flexDirection: 'column', gap: '6px' },
+            },
+            row(entry.name, entry.text),
+            h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+              h('input', Object.assign({
+                value: drafts[entry.name] ?? '',
+                placeholder: entry.ok ? t.keyPlaceholderSet : t.keyPlaceholder(entry.name),
+                disabled: busy || !entry.writable,
+                onChange: (event) => { setDrafts((previous) => Object.assign({}, previous, { [entry.name]: event.target.value })) },
+                style: { flex: 1, minWidth: 0, fontSize: '12px', padding: '6px 8px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT },
+              }, maskedProps())),
+              h('button', {
+                type: 'button',
+                disabled: busy || (drafts[entry.name] ?? '') === '' || !entry.writable,
+                onClick: () => { void saveKey(entry.name) },
+                style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: busy || (drafts[entry.name] ?? '') === '' ? 'default' : 'pointer' },
+              }, t.save)),
+            entry.writable ? null : h('div', { style: { fontSize: '11px', color: MUTED } }, t.readonlyRef(entry.name))))),
 
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px', borderTop: `1px solid ${BORDER}` } },
             h('div', { style: { fontSize: '12px', fontWeight: 600, color: TEXT } }, t.endpointHeading),
             field(t.endpointBase, baseUrlDraft, (next) => { setBaseUrlDraft(next) }, DEFAULT_BASE_URL, endpointReadOnly),
             field(t.endpointModel, modelDraft, (next) => { setModelDraft(next) }, 'jev-latest', endpointReadOnly),
+            field(t.proxyLabel, proxyDraft, (next) => { setProxyDraft(next) }, 'system', endpointReadOnly),
             baseUrlInvalid ? h('div', { style: { fontSize: '11px', color: MUTED } }, t.endpointBadUrl) : null,
             modelInvalid ? h('div', { style: { fontSize: '11px', color: MUTED } }, t.endpointBadModel) : null,
+            proxyInvalid ? h('div', { style: { fontSize: '11px', color: MUTED } }, t.proxyBad) : null,
             h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
               h('button', {
                 type: 'button',
@@ -543,7 +660,8 @@ window.__ModuleLoader__.load({
                 onClick: () => { void saveEndpoint() },
                 style: { fontSize: '12px', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${BORDER}`, background: 'transparent', color: TEXT, cursor: endpointSaveDisabled ? 'default' : 'pointer' },
               }, t.endpointSave)),
-            h('div', { style: { fontSize: '11px', color: MUTED, lineHeight: '16px' } }, t.endpointHint)),
+            h('div', { style: { fontSize: '11px', color: MUTED, lineHeight: '16px' } }, t.endpointHint),
+            h('div', { style: { fontSize: '11px', color: MUTED, lineHeight: '16px' } }, t.proxyHint)),
 
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px', borderTop: `1px solid ${BORDER}` } },
             toggle(t.toggleMaster, masterOn, busy || settings === null || !formWritable, (next) => { void patch([{ op: 'set', path: ['enabled'], value: next }]) }),

@@ -33,10 +33,10 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url))
 /**
  * Every field this bundle's card reads or writes, by schema path.
  *
- * The three toggles, the two endpoint fields, and the key reference the input
- * names — exactly the set the card draws.
+ * The three toggles, the endpoint fields, the network exit, and the key
+ * reference the input names — exactly the set the card draws.
  */
-const CARD_FIELDS = ['enabled', 'apiKeyEnv', 'baseUrl', 'model', 'prune.enabled', 'suggest.enabled']
+const CARD_FIELDS = ['enabled', 'apiKeyEnv', 'proxy', 'baseUrl', 'model', 'prune.enabled', 'suggest.enabled']
 
 /**
  * Whether one schema path is marked volatile.
