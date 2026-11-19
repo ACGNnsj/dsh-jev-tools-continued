@@ -1,5 +1,5 @@
 {
-  "name": "dsh-jev-tools",
+  "name": "dsh-jev-tools-continued",
   "version": "0.2.0",
   "description": "Gives DeepSeek Harness three automatic Jev judgments — prune oversized tool output, screen fetched pages for injected instructions, suggest which skill to use — plus the jev_ask and jev_gate tools, a persistent judgment ledger, and a /jev-status diagnosis command. Requires a TypeSafe API key; with none configured it is completely inert and makes no network request.",
   "icon": "icon.svg",
@@ -162,10 +162,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HorusJiang/dsh-jev-tools.git"
+    "url": "git+https://github.com/ACGNnsj/dsh-jev-tools-continued.git"
   },
   "bugs": {
-    "url": "https://github.com/HorusJiang/dsh-jev-tools/issues"
+    "url": "https://github.com/ACGNnsj/dsh-jev-tools-continued/issues"
   },
-  "homepage": "https://github.com/HorusJiang/dsh-jev-tools#readme"
+  "homepage": "https://github.com/ACGNnsj/dsh-jev-tools-continued#readme"
 }

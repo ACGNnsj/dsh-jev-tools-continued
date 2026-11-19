@@ -1,5 +1,5 @@
 /**
- * dsh-jev-tools — host entry.
+ * dsh-jev-tools-continued — host entry.
  *
  * Two capabilities that need no change to how you use the harness:
  *   1. semantic pruning of oversized tool results  (tools/post-execute)
@@ -12,7 +12,7 @@
  * `storageDomain` when the profile has it (see `src/ledger-domain.ts`) and
  * stays in memory, visibly, when it does not.
  *
- * @module dsh-jev-tools
+ * @module dsh-jev-tools-continued
  */
 
 import { Config, TYPESAFE_KEYS_URL, resolveSettings, type JevSettings } from './config.js'
@@ -36,7 +36,7 @@ import type {
 } from './host.js'
 
 /** Plugin name as the bundle patch mounts it. */
-export const name = 'dsh-jev-tools'
+export const name = 'dsh-jev-tools-continued'
 
 /**
  * Hard service dependencies.
@@ -181,14 +181,14 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
         ctx.effect(() => () => { void domain.close() })
         lazyLedger.attach(createDomainLedger({
           domain,
-          log: message => { ctx.logger?.warn(`[dsh-jev-tools] ${message}`) },
+          log: message => { ctx.logger?.warn(`[dsh-jev-tools-continued] ${message}`) },
         }))
-        ctx.logger?.info(`[dsh-jev-tools] judgment ledger persisted (domain ${domain.name})`)
+        ctx.logger?.info(`[dsh-jev-tools-continued] judgment ledger persisted (domain ${domain.name})`)
       } catch (error) {
         // Bookkeeping is never worth a failed mount: judging continues, and
         // the status report shows that the counters are memory-only.
         ctx.logger?.warn(
-          '[dsh-jev-tools] ledger persistence unavailable; counters stay in memory:', error
+          '[dsh-jev-tools-continued] ledger persistence unavailable; counters stay in memory:', error
         )
       }
     })()
@@ -250,7 +250,7 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
     notices,
     now: () => Date.now(),
     newMessageId: () => `jev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
-    log: message => { ctx.logger?.warn(`[dsh-jev-tools] ${message}`) },
+    log: message => { ctx.logger?.warn(`[dsh-jev-tools-continued] ${message}`) },
   }))
 
   // The model-facing tools. Their registration is also the plugin's one
@@ -276,7 +276,7 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
         tools.register(create(shared))
       } catch (error) {
         // One tool failing to register must not take the other down with it.
-        ctx.logger?.warn(`[dsh-jev-tools] ${label} unavailable:`, error)
+        ctx.logger?.warn(`[dsh-jev-tools-continued] ${label} unavailable:`, error)
       }
     }
   })
@@ -291,7 +291,7 @@ export function apply (ctx: PluginContext, entry?: unknown): void {
   })
 
   ctx.logger?.info(
-    `[dsh-jev-tools] mounted (key ref=${current.apiKeyEnv}, model=${current.model}). `
+    `[dsh-jev-tools-continued] mounted (key ref=${current.apiKeyEnv}, model=${current.model}). `
     + `Configure a key at ${TYPESAFE_KEYS_URL}`
   )
 }

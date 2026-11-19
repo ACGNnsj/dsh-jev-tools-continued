@@ -19,7 +19,7 @@
  * stub is not a reconciler: `render` re-invokes the component until it stops
  * marking itself dirty, which is all this card's state machine needs.
  *
- * @module dsh-jev-tools/test/client
+ * @module dsh-jev-tools-continued/test/client
  */
 
 import assert from 'node:assert/strict'
@@ -30,7 +30,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const CARD = path.join(ROOT, 'client', 'client.js')
 /** The namespace the card reads and writes; the host half declares the same one. */
-const NS = 'dsh-jev-tools'
+const NS = 'dsh-jev-tools-continued'
 
 /** Yield to every pending microtask, so an awaited seam has settled. */
 const flush = (): Promise<void> => new Promise(resolve => { setTimeout(resolve, 0) })
@@ -322,7 +322,7 @@ test('an edit reaches the settings seam with the revision the host reported', as
   // Only the changed field: writing the untouched model would turn reading the
   // card into an override that pins the value against future default changes.
   assert.deepEqual(page.updates, [
-    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['baseUrl'], value: 'https://openrouter.ai/api' }], revision: 7 },
+    { ns: 'dsh-jev-tools-continued', ops: [{ op: 'set', path: ['baseUrl'], value: 'https://openrouter.ai/api' }], revision: 7 },
   ])
 
   // The host is re-read after the write, and the card then says where content goes.
@@ -338,7 +338,7 @@ test('an edit reaches the settings seam with the revision the host reported', as
   toggles[1]!.props.onChange({ target: { checked: false } })
   await flush()
   assert.deepEqual(page.updates.at(-1), {
-    ns: 'dsh-jev-tools',
+    ns: 'dsh-jev-tools-continued',
     ops: [{ op: 'set', path: ['prune', 'enabled'], value: false }],
     revision: 8,
   })
@@ -408,7 +408,7 @@ test('a namespace the host does not publish is named, not drawn as an empty form
   // ones the host does serve — is what turns that silence into a diagnosis.
   const page = await harness({ locale: 'en', servedNamespace: 'jev-tools' })
 
-  assert.match(allText(page.tree), /dsh-jev-tools/, 'the card must name the namespace it looked for')
+  assert.match(allText(page.tree), /dsh-jev-tools-continued/, 'the card must name the namespace it looked for')
   assert.match(allText(page.tree), /cordis\.patch\.yml/, 'and the file that decides it')
   assert.match(allText(page.tree), /host serves: jev-tools/, 'and what the host does serve')
   assert.equal(buttonWith(page.tree, 'Save endpoint').props.disabled, true)
@@ -438,7 +438,7 @@ test('a proxy edit reaches the seam, and garbage never does', async () => {
   buttonWith(tree, '保存端点').props.onClick()
   await flush()
   assert.deepEqual(page.updates, [
-    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['proxy'], value: 'system' }], revision: 7 },
+    { ns: 'dsh-jev-tools-continued', ops: [{ op: 'set', path: ['proxy'], value: 'system' }], revision: 7 },
   ])
 })
 
@@ -474,7 +474,7 @@ test('adding a reference appends a fresh name to the list', async () => {
   buttonWith(page.tree, '添加一把').props.onClick()
   await flush()
   assert.deepEqual(page.updates, [
-    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, NEW_KEY' }], revision: 7 },
+    { ns: 'dsh-jev-tools-continued', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, NEW_KEY' }], revision: 7 },
   ])
 })
 
@@ -483,7 +483,7 @@ test('a new row is named and filled in one save', async () => {
   buttonWith(page.tree, '添加一把').props.onClick()
   await flush()
   assert.deepEqual(page.updates, [
-    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, NEW_KEY' }], revision: 7 },
+    { ns: 'dsh-jev-tools-continued', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, NEW_KEY' }], revision: 7 },
   ])
 
   // The new row carries its own name field: rename it and paste its key, then
@@ -499,7 +499,7 @@ test('a new row is named and filled in one save', async () => {
   saves[1]!.props.onClick()
   await flush()
   assert.deepEqual(page.updates.at(-1), {
-    ns: 'dsh-jev-tools',
+    ns: 'dsh-jev-tools-continued',
     ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY, TYPESAFE_API_KEY_2' }],
     revision: 8,
   })
@@ -525,6 +525,6 @@ test('removing a reference drops it from the list', async () => {
   removes[0]!.props.onClick()
   await flush()
   assert.deepEqual(page.updates, [
-    { ns: 'dsh-jev-tools', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY_2' }], revision: 7 },
+    { ns: 'dsh-jev-tools-continued', ops: [{ op: 'set', path: ['apiKeyEnv'], value: 'TYPESAFE_API_KEY_2' }], revision: 7 },
   ])
 })

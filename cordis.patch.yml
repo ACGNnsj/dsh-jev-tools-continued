@@ -1,4 +1,4 @@
-# dsh-jev-tools bundle layer: Jev as a judgment primitive inside DeepSeek Harness.
+# dsh-jev-tools-continued bundle layer: Jev as a judgment primitive inside DeepSeek Harness.
 #
 # Mounts one host plugin. It contributes:
 #   1. semantic pruning of oversized tool results (tools/post-execute)
@@ -14,7 +14,7 @@
 # Privacy: once a key is configured, tool-result and fetched-page content is sent
 # to the configured System One endpoint (api.typesafe.ai unless `baseUrl` names a
 # self-hosted or gateway deployment) for judging. Every capability can be turned
-# off separately in Settings -> Plugins -> dsh-jev-tools, and disabling takes
+# off separately in Settings -> Plugins -> dsh-jev-tools-continued, and disabling takes
 # effect immediately.
 #
 # The row id is the package name on purpose. DSH addresses a bundle's settings
@@ -26,5 +26,5 @@
 # fields stay blank, with no error printed anywhere. Keep the row id and the
 # package name equal — `test/bundle-contract.test.ts` enforces it.
 - insert:
-    - id: dsh-jev-tools
-      name: dsh-jev-tools
+    - id: dsh-jev-tools-continued
+      name: dsh-jev-tools-continued

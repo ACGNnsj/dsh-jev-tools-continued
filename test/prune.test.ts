@@ -268,7 +268,7 @@ test('an oversized result is pruned, a notice is attached, and non-text blocks s
 
   const contexts = decision.additionalContexts as { source?: { kind?: string, form?: string, summary?: string } }[]
   assert.equal(contexts?.length, 1)
-  assert.equal(contexts[0]?.source?.kind, 'plugin:dsh-jev-tools')
+  assert.equal(contexts[0]?.source?.kind, 'plugin:dsh-jev-tools-continued')
   assert.equal(contexts[0]?.source?.form, 'notice')
   assert.match(contexts[0]?.source?.summary ?? '', /→/)
 
@@ -440,7 +440,7 @@ test('shadow mode reports what it would have done and changes nothing', async ()
     source?: { kind?: string, summary?: string },
     content?: { text: string }[],
   }
-  assert.equal(notice?.source?.kind, 'plugin:dsh-jev-tools')
+  assert.equal(notice?.source?.kind, 'plugin:dsh-jev-tools-continued')
   assert.match(String(notice?.source?.summary), /^shadow · /)
   assert.match(String(notice?.content?.[0]?.text), /shadow mode/i)
 

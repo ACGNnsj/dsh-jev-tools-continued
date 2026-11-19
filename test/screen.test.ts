@@ -165,7 +165,7 @@ test('the warning says what to do, in the conversation\u2019s language', () => {
     source: { kind: string, form: string },
     content: { text: string }[],
   }
-  assert.equal(english.source.kind, 'plugin:dsh-jev-tools')
+  assert.equal(english.source.kind, 'plugin:dsh-jev-tools-continued')
   assert.equal(english.source.form, 'notice')
   assert.match(english.content[0]!.text, /instructions addressed to an AI/)
   assert.match(english.content[0]!.text, /0\.93/)

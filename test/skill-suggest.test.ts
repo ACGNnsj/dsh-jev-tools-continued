@@ -135,7 +135,7 @@ test('the original messages are preserved verbatim and the notice is appended', 
   assert.equal(decision.messages.length, ORIGINAL.length + 1)
   assert.deepEqual(decision.messages.slice(0, ORIGINAL.length), ORIGINAL)
   const notice = decision.messages.at(-1) as { source?: { kind?: string, form?: string } }
-  assert.equal(notice.source?.kind, 'plugin:dsh-jev-tools')
+  assert.equal(notice.source?.kind, 'plugin:dsh-jev-tools-continued')
   assert.equal(notice.source?.form, 'notice')
 })
 

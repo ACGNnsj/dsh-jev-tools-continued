@@ -1,5 +1,5 @@
 /**
- * dsh-jev-tools browser half: the bundle's own configuration card.
+ * dsh-jev-tools-continued browser half: the bundle's own configuration card.
  *
  * Hand-written lazy-CJS bundle (`window.__ModuleLoader__.load`), no build step,
  * no imports beyond React — deliberately so, because the npm-published
@@ -32,14 +32,14 @@
  * user cannot reach at all — which is exactly how `baseUrl` shipped unused
  * between 0.1.6 and 0.1.10 (issue #3).
  *
- * @module dsh-jev-tools/client
+ * @module dsh-jev-tools-continued/client
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-jev-tools',
+  id: 'dsh-jev-tools-continued',
   factory: (require) => {
     /** Settings namespace owned by the host half. */
-    const NS = 'dsh-jev-tools'
+    const NS = 'dsh-jev-tools-continued'
     /** Where a user creates a TypeSafe API key. */
     const KEYS_URL = 'https://console.typesafe.ai/keys'
     /** Where a user creates an OpenRouter key, when the endpoint is OpenRouter's. */
@@ -747,7 +747,7 @@ window.__ModuleLoader__.load({
         const Card = makeCard(React, ctx)
         slots.inject('plugins.bundle.config', () => slots.register({
           name: 'plugins.bundle.config',
-          key: 'dsh-jev-tools',
+          key: 'dsh-jev-tools-continued',
         }, Card))
       },
     }

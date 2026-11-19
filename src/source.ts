@@ -7,16 +7,16 @@
  * `format v4 message requires a producer-owned source kind`. So the plugin
  * names itself in `kind` instead of in a property beside a literal `'plugin'`.
  *
- * `plugin:dsh-jev-tools` is the value the harness's own v3->v4 migration records
+ * `plugin:dsh-jev-tools-continued` is the value the harness's own v3->v4 migration records
  * for this plugin's historical notices, so a session upgraded across that edge
  * and a session written today agree on one identity rather than splitting into
  * two.
  *
- * @module dsh-jev-tools/source
+ * @module dsh-jev-tools-continued/source
  */
 
 /** Plugin identity used in the injected notice's source. */
-export const PLUGIN_ID = 'dsh-jev-tools'
+export const PLUGIN_ID = 'dsh-jev-tools-continued'
 
 /**
  * Producer-owned source kind for every durable message this plugin appends.
